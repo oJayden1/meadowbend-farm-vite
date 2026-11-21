@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meadowbend Farm — Cozy 3D Sandbox</title>
+  <link rel="stylesheet" href="/src/styles/main.css" />
+</head>
+<body>
+  <!-- Immediate 0ms Loading Overlay -->
+  <div id="loading-screen" role="status" aria-live="polite">
+    <div class="loader-card">
+      <div class="loader-emblem">🌾</div>
+      <div class="loader-title">Meadowbend Farm</div>
+      <div class="loader-subtitle">Preparing your cozy 3D valley, 20 crops, inventory &amp; farmhouse chest...</div>
+      <div class="loader-track">
+        <div class="loader-fill" id="loader-fill"></div>
+      </div>
+      <div class="loader-status-row">
+        <span id="loader-status">Starting engine...</span>
+        <span id="loader-pct">5%</span>
+      </div>
+      <div id="loader-fallback-box">
+        <span id="loader-fallback-msg">
+          Loading 3D modules is taking a little longer than usual. Please check your connection or retry below.
+        </span>
+        <button class="cozy-btn primary" id="btn-retry-load">↻ Retry Loading</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cozy Start Menu (Shown after Loading Screen over live 3D valley) -->
+  <div id="start-menu" role="dialog" aria-modal="true" aria-labelledby="start-menu-title">
+    <div class="start-card">
+      <div class="start-badge">✨ Schema v2 · 20 Crops · 24-Slot Inventory &amp; Farmhouse Chest</div>
+      <div>
+        <h1 class="start-title" id="start-menu-title">🌾 Meadowbend Farm</h1>
+        <p class="start-sub">Cozy 3D Valley Sandbox · Grow 20 crops, manage your 24-slot pack, and store goods in your Farmhouse Chest.</p>
+      </div>
+
+      <div class="save-summary-box" id="start-save-summary"></div>
+
+      <div id="start-backup-container"></div>
+
+      <div class="start-actions">
+        <button class="cozy-btn primary" id="btn-continue-farm" style="padding: 11px 16px; font-size: 15px;">
+          ▶️ Continue Farm
+        </button>
+        <div class="start-secondary-row">
+          <button class="cozy-btn accent" id="btn-start-new-farm">🌱 New Farm</button>
+          <button class="cozy-btn" id="btn-start-import">📥 Import Save</button>
+        </div>
+        <button class="cozy-btn" id="btn-start-export">📤 Export Save (.json / JSON Text)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+  <div id="room-fade"></div>
+
+  <div id="hud" class="hidden-hud">
+    <div class="top-bar">
+      <div class="card stats-card">
+        <div class="stat-pill loc-pill" id="hud-location">🌾 Meadowbend Farm</div>
+        <div class="stat-pill">📅 Day <span id="hud-day">1</span></div>
+        <div class="stat-pill">🕒 <span id="hud-time">06:00 AM</span> (<span id="hud-phase">Day</span>)</div>
+        <div class="stat-pill weather-pill" id="hud-weather">☀️ Sunny</div>
+        <div class="stat-pill coin-val">🪙 <span id="hud-coins">120</span>g</div>
+      </div>
+
+      <div class="card controls-card">
+        <button class="cozy-btn accent" id="btn-open-inventory" title="Open 24-slot Inventory [I]">🎒 Inventory [I]</button>
+        <button class="cozy-btn" id="btn-menu" title="Return to Start Menu">🏠 Start Menu</button>
+        <button class="cozy-btn" id="btn-unstuck" title="Teleport safely back to the farm center">🧭 Center Spawn</button>
+        <button class="cozy-btn" id="btn-audio">🔊 SFX: On</button>
+      </div>
+    </div>
+
+    <div id="toast-container"></div>
+    <div id="action-hint">Press [E] to interact</div>
+
+    <div class="bottom-area">
+      <div class="hotbar" id="hotbar"></div>
+      <div class="mini-help">
+        <b>WASD / Arrows</b> Move · <b>Space / Click</b> Use Tool · <b>I</b> 24-Slot Inventory · <b>E</b> Doors / Pip / Chest &amp; Bed · <b>1–0 / -</b> Hotbar
+      </div>
+    </div>
+  </div>
+
+  <!-- 24-Slot Player Inventory Modal -->
+  <div class="modal-backdrop" id="inventory-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🎒 Player Inventory (24 Slots)</h2>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12.5px;font-weight:800;color:#6b4c2b;" id="inv-usage-label">0 / 24 Used</span>
+          <button class="cozy-btn" id="close-inventory">✕ Close</button>
+        </div>
+      </div>
+      <div style="padding: 14px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+        <div class="inspector-bar" id="inv-inspector">
+          <div id="inv-selected-summary" style="font-size:13px;font-weight:700;color:#4a3219;">
+            Click any slot to inspect, move, or assign seeds/fences/gates to hotbar slots [5]–[-].
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="inv-selected-actions"></div>
+        </div>
+        <div class="storage-grid" id="player-inventory-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 24-Slot Farmhouse Chest Modal (Inside Cozy Farmhouse) -->
+  <div class="modal-backdrop" id="chest-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🧰 Farmhouse Chest (24 Slots)</h2>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12.5px;font-weight:800;color:#6b4c2b;" id="chest-usage-label">0 / 24 Used</span>
+          <button class="cozy-btn" id="close-chest">✕ Close</button>
+        </div>
+      </div>
+      <div style="padding: 14px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+        <div class="inspector-bar">
+          <div id="chest-status-line" style="font-size:12.5px;font-weight:700;color:#4a3219;">
+            Click a <b>Chest</b> slot to withdraw to your 24-slot Inventory, or click an <b>Inventory</b> slot below to deposit into the Chest.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="cozy-btn primary" id="btn-deposit-all-crops">📦 Deposit All Harvested Crops</button>
+          </div>
+        </div>
+
+        <div class="shop-section-title" style="margin-top:0;">🧰 Farmhouse Chest Storage (24 Slots)</div>
+        <div class="storage-grid" id="chest-storage-grid"></div>
+
+        <div class="shop-section-title">🎒 Your Player Inventory (24 Slots — Click to Deposit)</div>
+        <div class="storage-grid" id="chest-inv-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shopkeeper Pip Modal -->
+  <div class="modal-backdrop" id="shop-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>🧑🌾 Pip's Valley Shop — Talk with Pip</h2>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-weight:800;color:#c77d00;">🪙 <span id="shop-coins">120</span>g</span>
+          <button class="cozy-btn" id="close-shop">✕ Close</button>
+        </div>
+      </div>
+      <div class="hot-banner">
+        <span>🔥 Today's Hot Crop (1.5× Sell Price): <strong id="hot-crop-label">Sweet Turnip</strong></span>
+        <button class="cozy-btn primary" id="btn-sell-all">Sell All Crops</button>
+      </div>
+      <div class="modal-body" id="shop-body"></div>
+    </div>
+  </div>
+
+  <!-- Farmhouse Bed Modal -->
+  <div class="modal-backdrop" id="bed-modal">
+    <div class="modal" style="width: min(460px, 92vw);">
+      <div class="modal-header">
+        <h2>🛏️ Cozy Farmhouse Bed</h2>
+        <button class="cozy-btn" id="close-bed">✕</button>
+      </div>
+      <div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 13px; text-align: center;">
+        <p style="font-size: 13.5px; line-height: 1.45; color: #543d24;">
+          Currently <strong id="bed-current-status">Day 1 · 06:00 AM (Day)</strong>. Choose when you'd like to rest until:
+        </p>
+        <div class="bed-options">
+          <button class="cozy-btn accent bed-choice-btn" id="btn-sleep-noon">
+            <span>☀️ Rest Until Noon (12:00 PM)</span>
+            <span class="bed-choice-sub" id="bed-noon-sub">Same day · +8 crop growth</span>
+          </button>
+          <button class="cozy-btn night-btn bed-choice-btn" id="btn-sleep-night">
+            <span>🌙 Sleep Until Night (06:00 PM)</span>
+            <span class="bed-choice-sub" id="bed-night-sub">Fireflies &amp; night sky · +14 crop growth</span>
+          </button>
+          <button class="cozy-btn primary bed-choice-btn" id="btn-sleep-morning">
+            <span>🌅 Sleep Until Morning (06:00 AM)</span>
+            <span class="bed-choice-sub" id="bed-morning-sub">Next day · New weather · +22 crop growth</span>
+          </button>
+        </div>
+        <div style="display:flex; justify-content:center; margin-top: 2px;">
+          <button class="cozy-btn" id="btn-cancel-sleep">Stay Up</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Farmhouse Desk & Ledger Modal (Includes Export / Import & Fresh Start) -->
+  <div class="modal-backdrop" id="desk-modal">
+    <div class="modal" style="width: min(520px, 94vw);">
+      <div class="modal-header">
+        <h2>📜 Farmhouse Ledger &amp; Saves</h2>
+        <button class="cozy-btn" id="close-desk">✕</button>
+      </div>
+      <div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; text-align: center;">
+        <div class="stats-grid" id="farm-ledger-stats"></div>
+        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+          <button class="cozy-btn" id="btn-desk-export">📤 Export Save</button>
+          <button class="cozy-btn" id="btn-desk-import">📥 Import Save</button>
+        </div>
+        <p style="font-size: 12px; line-height: 1.45; color: #684c2e;">
+          💡 <b>Farm Tips:</b> Open your <b>24-slot Inventory [I]</b> to assign seeds/fences/gates to the hotbar, till with <b>[1]</b>, water with <b>[2]</b> (refill at the southeast brook), and use the <b>Chest</b> or <b>Bed</b> inside this house!
+        </p>
+        <hr style="border:none; border-top:1.5px dashed #dec296; margin:2px 0;" />
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#7a5c3c;">
+          <span>Reset valley &amp; start a fresh save? (Auto-backs up first)</span>
+          <button class="cozy-btn danger" id="btn-wipe-save">Start Fresh Farm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Export / Import Transfer Modal -->
+  <div class="modal-backdrop" id="save-transfer-modal">
+    <div class="modal" style="width: min(560px, 94vw);">
+      <div class="modal-header">
+        <h2 id="save-transfer-title">📤 Export Farm Save</h2>
+        <button class="cozy-btn" id="close-save-transfer">✕ Close</button>
+      </div>
+      <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <p id="save-transfer-desc" style="font-size: 13px; line-height: 1.45; color: #593e22;"></p>
+
+        <div id="import-file-row" style="display:none; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; background:#f7eedc; border:2px solid #dec49b; border-radius:12px; padding:10px 12px;">
+          <span style="font-size:12.5px; font-weight:700; color:#4a3219;">📄 Choose a .json save file:</span>
+          <input type="file" id="save-file-input" accept=".json,application/json" style="font-size:12px; max-width:240px;" />
+        </div>
+
+        <textarea id="save-json-textarea" class="save-textarea" spellcheck="false" placeholder="Paste exported save JSON here..."></textarea>
+        <div id="save-transfer-feedback" style="font-size:12.5px; font-weight:700; min-height:18px; color:#4a3219;"></div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+          <button class="cozy-btn" id="btn-copy-save-json">📋 Copy JSON</button>
+          <button class="cozy-btn primary" id="btn-download-save-json">💾 Download .json</button>
+          <button class="cozy-btn primary" id="btn-apply-import-json" style="display:none;">✅ Apply Imported Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Immediate 0ms Loading Screen Controller & 8-Second Fallback Watchdog
+    (function setupLoaderController() {
+      const fillEl = document.getElementById('loader-fill');
+      const statusEl = document.getElementById('loader-status');
+      const pctEl = document.getElementById('loader-pct');
+      const fallbackBox = document.getElementById('loader-fallback-box');
+      const fallbackMsg = document.getElementById('loader-fallback-msg');
+      const retryBtn = document.getElementById('btn-retry-load');
+
+      let dismissed = false;
+      let currentPct = 5;
+
+      window.__updateLoader = function updateLoader(pct, statusText) {
+        if (dismissed) return;
+        currentPct = Math.max(currentPct, Math.min(100, Math.round(pct)));
+        if (fillEl) fillEl.style.width = `${currentPct}%`;
+        if (pctEl) pctEl.textContent = `${currentPct}%`;
+        if (statusEl && statusText) statusEl.textContent = statusText;
+      };
+
+      window.__showLoaderFallback = function showLoaderFallback(customMessage) {
+        if (dismissed) return;
+        if (customMessage && fallbackMsg) {
+          fallbackMsg.textContent = customMessage;
+        }
+        if (fallbackBox) fallbackBox.classList.add('visible');
+      };
+
+      window.__dismissLoader = function dismissLoader() {
+        if (dismissed) return;
+        dismissed = true;
+        window.__updateLoader(100, 'Ready for the valley!');
+        const screen = document.getElementById('loading-screen');
+        if (screen) {
+          screen.classList.add('fade-out');
+          setTimeout(() => {
+            if (screen.parentNode) screen.parentNode.removeChild(screen);
+          }, 480);
+        }
+        if (typeof window.__onLoadingComplete === 'function') {
+          window.__onLoadingComplete();
+        }
+      };
+
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          window.location.reload();
+        });
+      }
+
+      setTimeout(() => {
+        if (!dismissed) {
+          window.__showLoaderFallback(
+            'Still compiling 3D shaders or loading modules. If this screen stays stuck, click Retry below.'
+          );
+        }
+      }, 8000);
+    })();
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
